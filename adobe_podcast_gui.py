@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Adobe Podcast Enhancer - GUI con Tkinter
 Aplicación de escritorio con diseño moderno de Platzi
@@ -12,6 +13,12 @@ from pathlib import Path
 import base64
 import os
 import sys
+
+# Configurar encoding UTF-8 para Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 # Colores de Platzi
 PLATZI_GREEN = "#98ca3f"
@@ -290,7 +297,7 @@ Esta aplicación NO comparte tus credenciales."""
                                                   font=('Consolas', 9),
                                                   wrap='word')
         self.log_text.pack(fill='both', expand=True, pady=10)
-        self.log("✅ Sistema iniciado correctamente")
+        self.log(">> Sistema iniciado correctamente")
     
     def create_card(self, parent, title):
         """Crea un card con estilo Platzi"""
@@ -359,8 +366,8 @@ Esta aplicación NO comparte tus credenciales."""
         }
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-        messagebox.showinfo("Éxito", "✅ Configuración guardada")
-        self.log("✅ Configuración guardada")
+        messagebox.showinfo("Exito", "Configuracion guardada")
+        self.log(">> Configuracion guardada")
     
     def load_credentials(self):
         """Carga las credenciales guardadas"""
@@ -445,7 +452,7 @@ Esta aplicación NO comparte tus credenciales."""
                 size_mb = Path(file).stat().st_size / (1024 * 1024)
                 self.files_listbox.insert(
                     tk.END, f"{filename} ({size_mb:.2f} MB)")
-            self.log(f"✅ {len(self.selected_files)} archivo(s) seleccionado")
+            self.log(f">> {len(self.selected_files)} archivo(s) seleccionado(s)")
     
     def log(self, message):
         """Añade mensaje al log"""
@@ -468,7 +475,7 @@ Esta aplicación NO comparte tus credenciales."""
     def run_automation(self):
         """Ejecuta el script de automatización"""
         try:
-            self.log("🚀 Iniciando procesamiento...")
+            self.log(">> Iniciando procesamiento...")
             
             # Preparar argumentos
             files_json = json.dumps(self.selected_files)
@@ -483,35 +490,38 @@ Esta aplicación NO comparte tus credenciales."""
                 '--download-path', self.download_path_var.get()
             ]
             
-            # Ejecutar
+            # Ejecutar con encoding UTF-8
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
+                encoding='utf-8',
+                errors='replace',  # Reemplazar caracteres no decodificables
+                bufsize=1
             )
             
             # Leer salida
             for line in process.stdout:
                 line = line.strip()
                 if line:
+                    # Limpiar timestamp si existe
+                    if ']' in line:
+                        line = line.split(']', 1)[-1].strip()
                     self.log(line)
             
             process.wait()
             
             if process.returncode == 0:
-                self.log("✅ Procesamiento completado!")
-                messagebox.showinfo("Éxito",
-                                   "✅ Videos procesados correctamente")
+                self.log(">> Procesamiento completado!")
+                messagebox.showinfo("Exito",
+                                   "Videos procesados correctamente")
             else:
                 error = process.stderr.read()
-                self.log(f"❌ Error: {error}")
+                self.log(f">> Error: {error}")
                 messagebox.showerror("Error", f"Error: {error}")
         
         except Exception as e:
-            self.log(f"❌ Error: {str(e)}")
+            self.log(f">> Error: {str(e)}")
             messagebox.showerror("Error", str(e))
 
 
