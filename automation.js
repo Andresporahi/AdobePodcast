@@ -395,7 +395,22 @@ class AdobePodcastAutomation {
                 this.log('⏳ Esperando inicio de procesamiento...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 
-                // Esperar a que aparezca indicador de procesamiento
+                // Verificar que estemos en la interfaz de procesamiento correcta
+                const processingUIReady = await this.page.evaluate(() => {
+                    // Buscar elementos que indican que estamos en la interfaz de procesamiento
+                    const pageText = document.body.textContent || '';
+                    const hasEnhanceUI = pageText.includes('Enhance Speech') || 
+                                        pageText.includes('Original') || 
+                                        pageText.includes('Enhanced') ||
+                                        document.querySelector('[data-test-id*="enhance"]') !== null;
+                    return hasEnhanceUI;
+                });
+                
+                if (!processingUIReady) {
+                    this.log('⚠️ La interfaz de procesamiento no se ha cargado, esperando...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                
                 this.log('🔄 Procesamiento en curso... (esto puede tardar varios minutos)');
                 
                 // Detectar cuando el procesamiento termine - buscar botón de descarga
@@ -447,14 +462,22 @@ class AdobePodcastAutomation {
                                 downloadBtnReady = isVisible && isEnabled;
                             }
                             
-                            // Debugging info
-                            const visibleButtons = allButtons
+                            // Debugging info - solo botones del área de trabajo, no la navegación principal
+                            const workArea = document.querySelector('main, [role="main"], .enhance-container, #enhance') || document.body;
+                            const workAreaButtons = Array.from(workArea.querySelectorAll('button, a, div[role="button"], span[role="button"]'));
+                            const visibleButtons = workAreaButtons
                                 .filter(b => {
                                     const style = window.getComputedStyle(b);
-                                    return style.display !== 'none' && parseFloat(style.opacity) > 0;
+                                    const text = b.textContent.trim();
+                                    return style.display !== 'none' && 
+                                           parseFloat(style.opacity) > 0 &&
+                                           text.length > 0 && 
+                                           text.length < 50 &&
+                                           !text.includes('Plans') && // Excluir navegación
+                                           !text.includes('Forums') &&
+                                           !text.includes('Affiliates');
                                 })
-                                .map(b => b.textContent.trim())
-                                .filter(t => t.length > 0 && t.length < 50);
+                                .map(b => b.textContent.trim());
                             
                             return {
                                 enhancedReady: slidersReady && downloadBtnReady,
@@ -463,7 +486,7 @@ class AdobePodcastAutomation {
                                 slidersCount: allSliders.length,
                                 downloadBtnReady,
                                 downloadBtnExists: !!downloadBtn,
-                                availableButtons: visibleButtons.slice(0, 10)
+                                availableButtons: [...new Set(visibleButtons)].slice(0, 10) // Eliminar duplicados
                             };
                         });
                         
@@ -571,9 +594,16 @@ class AdobePodcastAutomation {
                             this.log(`⏳ Esperando procesamiento... (${minutes}m ${remainingSeconds}s)`);
                             this.log(`🔍 Estado: ${processingStatus.slidersCount} sliders, Download=${processingStatus.downloadBtnExists ? 'Sí' : 'No'}`);
                             
-                            // Mostrar botones disponibles para debugging
+                            // Solo mostrar algunos botones relevantes para debugging (no todos)
                             if (processingStatus.availableButtons && processingStatus.availableButtons.length > 0) {
-                                this.log(`📋 Botones: ${processingStatus.availableButtons.join(', ')}`);
+                                const relevantButtons = processingStatus.availableButtons
+                                    .filter(b => b.toLowerCase().includes('download') || 
+                                               b.toLowerCase().includes('enhanced') || 
+                                               b.toLowerCase().includes('original'))
+                                    .slice(0, 5);
+                                if (relevantButtons.length > 0) {
+                                    this.log(`📋 Botones relevantes: ${relevantButtons.join(', ')}`);
+                                }
                             }
                         }
                         
