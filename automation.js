@@ -35,6 +35,16 @@ const argv = yargs(hideBin(process.argv))
         type: 'string',
         demandOption: true
     })
+    .option('speech-level', {
+        description: 'Nivel de Speech (0-100)',
+        type: 'number',
+        default: 70
+    })
+    .option('background-level', {
+        description: 'Nivel de Background (0-100)',
+        type: 'number',
+        default: 10
+    })
     .help()
     .alias('help', 'h')
     .argv;
@@ -46,10 +56,12 @@ const UPLOAD_TIMEOUT = 300000;
 const PROCESSING_TIMEOUT = 600000;
 
 class AdobePodcastAutomation {
-    constructor(email, password, downloadPath) {
+    constructor(email, password, downloadPath, speechLevel = 70, backgroundLevel = 10) {
         this.email = email;
         this.password = password;
         this.downloadPath = downloadPath;
+        this.speechLevel = speechLevel;
+        this.backgroundLevel = backgroundLevel;
         this.browser = null;
         this.page = null;
     }
@@ -436,6 +448,35 @@ class AdobePodcastAutomation {
                         if (downloadInfo.found) {
                             this.log(`✅ Procesamiento completado - Botón de descarga encontrado: "${downloadInfo.text.trim()}"`);
                             
+                            // Ajustar los sliders ANTES de descargar
+                            this.log(`🎚️ Ajustando Speech a ${this.speechLevel}% y Background a ${this.backgroundLevel}%...`);
+                            
+                            await this.page.evaluate((speech, background) => {
+                                // Buscar sliders por múltiples métodos
+                                const sliders = Array.from(document.querySelectorAll('input[type="range"], [role="slider"]'));
+                                
+                                sliders.forEach(slider => {
+                                    const label = slider.parentElement?.textContent?.toLowerCase() || 
+                                                 slider.getAttribute('aria-label')?.toLowerCase() || '';
+                                    
+                                    if (label.includes('speech') || label.includes('voz')) {
+                                        // Ajustar Speech
+                                        slider.value = speech;
+                                        slider.dispatchEvent(new Event('input', { bubbles: true }));
+                                        slider.dispatchEvent(new Event('change', { bubbles: true }));
+                                    } else if (label.includes('background') || label.includes('fondo')) {
+                                        // Ajustar Background
+                                        slider.value = background;
+                                        slider.dispatchEvent(new Event('input', { bubbles: true }));
+                                        slider.dispatchEvent(new Event('change', { bubbles: true }));
+                                    }
+                                });
+                            }, this.speechLevel, this.backgroundLevel);
+                            
+                            // Esperar a que los cambios se apliquen
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            this.log('✅ Ajustes aplicados');
+                            
                             // Hacer clic en el botón de descarga
                             const clicked = await this.page.evaluate(() => {
                                 const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"], [class*="download"], [id*="download"]'));
@@ -617,7 +658,9 @@ class AdobePodcastAutomation {
     const automation = new AdobePodcastAutomation(
         argv.email,
         argv.password,
-        argv['download-path']
+        argv['download-path'],
+        argv['speech-level'],
+        argv['background-level']
     );
 
     const result = await automation.run(argv.files);
