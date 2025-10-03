@@ -431,6 +431,15 @@ class AdobePodcastAutomation {
                             // Buscar los sliders Speech y Background
                             const allSliders = Array.from(document.querySelectorAll('input[type="range"]'));
                             
+                            // DEBUG: Información detallada de todos los sliders encontrados
+                            const slidersDebug = allSliders.map(s => ({
+                                parentText: s.parentElement?.textContent?.substring(0, 100) || '',
+                                ariaLabel: s.getAttribute('aria-label') || '',
+                                id: s.id || '',
+                                className: s.className || '',
+                                value: s.value || ''
+                            }));
+                            
                             const speechSlider = allSliders.find(s => {
                                 const parent = s.parentElement;
                                 const label = (parent?.textContent || '').toLowerCase();
@@ -491,9 +500,12 @@ class AdobePodcastAutomation {
                                 hasSpeechSlider: !!speechSlider,
                                 hasBackgroundSlider: !!backgroundSlider,
                                 slidersCount: allSliders.length,
+                                slidersDebug: slidersDebug,
                                 downloadBtnReady,
                                 downloadBtnExists: !!downloadBtn,
-                                availableButtons: [...new Set(visibleButtons)].slice(0, 10) // Eliminar duplicados
+                                availableButtons: [...new Set(visibleButtons)].slice(0, 10), // Eliminar duplicados
+                                pageUrl: window.location.href,
+                                pageTitle: document.title
                             };
                         });
                         
@@ -600,6 +612,15 @@ class AdobePodcastAutomation {
                             const remainingSeconds = seconds % 60;
                             this.log(`⏳ Esperando procesamiento... (${minutes}m ${remainingSeconds}s)`);
                             this.log(`🔍 Estado: ${processingStatus.slidersCount} sliders, Download=${processingStatus.downloadBtnExists ? 'Sí' : 'No'}`);
+                            this.log(`📍 URL: ${processingStatus.pageUrl}`);
+                            
+                            // Mostrar info de sliders encontrados
+                            if (processingStatus.slidersDebug && processingStatus.slidersDebug.length > 0) {
+                                this.log(`🎚️ Sliders encontrados:`);
+                                processingStatus.slidersDebug.forEach((s, i) => {
+                                    this.log(`  ${i+1}. Label: "${s.parentText.substring(0, 40)}", Value: ${s.value}`);
+                                });
+                            }
                             
                             // Solo mostrar algunos botones relevantes para debugging (no todos)
                             if (processingStatus.availableButtons && processingStatus.availableButtons.length > 0) {
@@ -611,6 +632,13 @@ class AdobePodcastAutomation {
                                 if (relevantButtons.length > 0) {
                                     this.log(`📋 Botones relevantes: ${relevantButtons.join(', ')}`);
                                 }
+                            }
+                            
+                            // Tomar screenshot cada 2 minutos para debugging
+                            if (minutes % 2 === 0 && remainingSeconds === 0 && minutes > 0) {
+                                const screenshotPath = path.join(this.downloadPath, `debug_${Date.now()}.png`);
+                                await this.page.screenshot({ path: screenshotPath, fullPage: true });
+                                this.log(`📸 Screenshot guardado: ${screenshotPath}`);
                             }
                         }
                         
