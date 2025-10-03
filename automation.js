@@ -101,55 +101,124 @@ class AdobePodcastAutomation {
 
             this.log('📄 Página cargada, buscando botón de login...');
 
-            // Esperar y hacer clic en el botón de Sign In
-            await this.page.waitForSelector('button, a[href*="ims"]', { timeout: 10000 });
+            // Esperar un momento para que la página cargue completamente
+            await this.page.waitForTimeout(2000);
             
-            // Buscar el botón de Sign In (puede variar el selector)
-            const signInButton = await this.page.$('button:has-text("Sign in"), a:has-text("Sign in"), button:has-text("Sign In"), a:has-text("Sign In")');
+            // Buscar botón de Sign In usando texto
+            const signInButton = await this.page.evaluateHandle(() => {
+                const buttons = Array.from(document.querySelectorAll('button, a'));
+                return buttons.find(button => {
+                    const text = button.textContent.toLowerCase();
+                    return text.includes('sign in') || 
+                           text.includes('log in') || 
+                           text.includes('iniciar sesión');
+                });
+            });
             
-            if (signInButton) {
-                await signInButton.click();
+            if (signInButton.asElement()) {
+                await signInButton.asElement().click();
                 this.log('🖱️ Click en botón de Sign In');
             } else {
-                // Intentar con selector alternativo
-                await this.page.click('button, a[href*="ims"]');
-                this.log('🖱️ Click en botón de autenticación');
+                // Intentar con selector alternativo para Adobe IMS
+                const imsLink = await this.page.$('a[href*="ims.na1.adobelogin.com"]');
+                if (imsLink) {
+                    await imsLink.click();
+                    this.log('🖱️ Click en enlace de autenticación Adobe');
+                } else {
+                    throw new Error('No se encontró el botón de Sign In');
+                }
             }
 
             // Esperar a que aparezca el formulario de login de Adobe
-            await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+            this.log('⏳ Esperando formulario de login...');
+            await this.page.waitForNavigation({ 
+                waitUntil: 'networkidle2', 
+                timeout: 30000 
+            }).catch(() => {
+                this.log('⚠️ No hubo navegación, continuando...');
+            });
             
-            this.log('📝 Formulario de login cargado');
-
             // Esperar al campo de email
-            await this.page.waitForSelector('input[type="email"], input[name="username"]', { timeout: 10000 });
+            await this.page.waitForSelector('input[type="email"], input[name="username"], input[name="email"]', { 
+                timeout: 15000 
+            });
             
-            // Ingresar email
-            await this.page.type('input[type="email"], input[name="username"]', this.email, { delay: 100 });
+            this.log('📝 Formulario de login encontrado');
+            
+            // Limpiar y escribir email
+            const emailInput = await this.page.$('input[type="email"], input[name="username"], input[name="email"]');
+            await emailInput.click({ clickCount: 3 });
+            await this.page.keyboard.press('Backspace');
+            await emailInput.type(this.email, { delay: 100 });
             this.log('📧 Email ingresado');
 
-            // Hacer clic en continuar/siguiente
-            await this.page.click('button[type="submit"], button[type="button"]');
+            // Buscar y hacer clic en botón de continuar
+            await this.page.waitForTimeout(1000);
+            
+            const continueButton = await this.page.evaluateHandle(() => {
+                const buttons = Array.from(document.querySelectorAll('button'));
+                return buttons.find(button => {
+                    const text = button.textContent.toLowerCase();
+                    return text.includes('continue') || 
+                           text.includes('next') || 
+                           text.includes('continuar') ||
+                           text.includes('siguiente');
+                }) || buttons.find(b => b.type === 'submit');
+            });
+            
+            if (continueButton.asElement()) {
+                await continueButton.asElement().click();
+                this.log('➡️ Click en continuar');
+            }
             
             // Esperar al campo de contraseña
-            await this.page.waitForSelector('input[type="password"]', { timeout: 10000 });
+            await this.page.waitForSelector('input[type="password"]', { timeout: 15000 });
+            this.log('🔑 Campo de contraseña encontrado');
             
             // Ingresar contraseña
-            await this.page.type('input[type="password"]', this.password, { delay: 100 });
+            const passwordInput = await this.page.$('input[type="password"]');
+            await passwordInput.type(this.password, { delay: 100 });
             this.log('🔒 Contraseña ingresada');
 
             // Hacer clic en iniciar sesión
-            await this.page.click('button[type="submit"]');
+            await this.page.waitForTimeout(1000);
+            
+            const submitButton = await this.page.evaluateHandle(() => {
+                const buttons = Array.from(document.querySelectorAll('button'));
+                return buttons.find(button => {
+                    const text = button.textContent.toLowerCase();
+                    return text.includes('sign in') || 
+                           text.includes('log in') || 
+                           text.includes('iniciar') ||
+                           button.type === 'submit';
+                });
+            });
+            
+            if (submitButton.asElement()) {
+                await submitButton.asElement().click();
+                this.log('✅ Credenciales enviadas');
+            } else {
+                await this.page.keyboard.press('Enter');
+                this.log('✅ Enter presionado para enviar');
+            }
             
             this.log('⏳ Esperando autenticación...');
 
-            // Esperar a que la navegación complete (puede tomar tiempo)
+            // Esperar a que la navegación complete
             await this.page.waitForNavigation({ 
                 waitUntil: 'networkidle2', 
                 timeout: LOGIN_TIMEOUT 
+            }).catch(() => {
+                this.log('⚠️ Timeout de navegación, verificando login...');
             });
 
-            this.log('✅ Sesión iniciada exitosamente');
+            // Verificar si estamos logueados (URL cambió a enhance)
+            const currentUrl = this.page.url();
+            if (currentUrl.includes('enhance') || currentUrl.includes('podcast.adobe.com')) {
+                this.log('✅ Sesión iniciada exitosamente');
+            } else {
+                this.log(`⚠️ URL actual: ${currentUrl}`);
+            }
             
             // Esperar un poco más para asegurar que todo cargue
             await this.page.waitForTimeout(3000);
@@ -157,6 +226,15 @@ class AdobePodcastAutomation {
             return true;
         } catch (error) {
             this.log(`❌ Error en login: ${error.message}`);
+            
+            // Tomar screenshot del error
+            try {
+                const screenshot = await this.page.screenshot();
+                this.log('📸 Screenshot capturado en caso de error');
+            } catch (e) {
+                // Ignorar error de screenshot
+            }
+            
             throw error;
         }
     }
