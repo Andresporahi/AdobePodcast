@@ -14,11 +14,16 @@ import base64
 import os
 import sys
 
-# Configurar encoding UTF-8 para Windows
+# Configurar encoding UTF-8 para Windows (solo si hay consola)
 if sys.platform == 'win32':
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    try:
+        import codecs
+        if sys.stdout and hasattr(sys.stdout, 'buffer'):
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        if sys.stderr and hasattr(sys.stderr, 'buffer'):
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    except (AttributeError, OSError):
+        pass  # pythonw no tiene stdout/stderr
 
 # Colores de Platzi
 PLATZI_GREEN = "#98ca3f"

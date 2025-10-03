@@ -1,8 +1,6 @@
 @echo off
+REM Launcher rápido - Sin verificaciones
 cd /d "%~dp0"
-
-REM Iniciar aplicación directamente (más rápido)
 start "" pythonw adobe_podcast_gui.py
-
 exit
 

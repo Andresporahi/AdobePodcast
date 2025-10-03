@@ -11,14 +11,19 @@ Write-Host ""
 $Desktop = [Environment]::GetFolderPath("Desktop")
 Write-Host "Escritorio: $Desktop" -ForegroundColor Cyan
 
-# Ruta del archivo bat
-$TargetPath = Join-Path $PSScriptRoot "AdobePodcast.bat"
+# Ruta del archivo bat RÁPIDO
+$TargetPath = Join-Path $PSScriptRoot "AdobePodcast_Rapido.bat"
 Write-Host "Destino: $TargetPath" -ForegroundColor Cyan
 
 # Verificar que existe el archivo
 if (-not (Test-Path $TargetPath)) {
+    # Usar el bat normal si no existe el rápido
+    $TargetPath = Join-Path $PSScriptRoot "AdobePodcast.bat"
+}
+
+if (-not (Test-Path $TargetPath)) {
     Write-Host ""
-    Write-Host "[ERROR] No se encuentra AdobePodcast.bat" -ForegroundColor Red
+    Write-Host "[ERROR] No se encuentra el archivo bat" -ForegroundColor Red
     Write-Host ""
     pause
     exit 1
@@ -44,7 +49,7 @@ try {
     Write-Host ""
     Write-Host "Ubicacion: $ShortcutPath" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Ya puedes usar el acceso directo desde tu escritorio." -ForegroundColor Cyan
+    Write-Host "NOTA: Usa el modo rapido para inicio instantaneo" -ForegroundColor Cyan
     Write-Host ""
 }
 catch {
@@ -57,4 +62,3 @@ catch {
 }
 
 pause
-
