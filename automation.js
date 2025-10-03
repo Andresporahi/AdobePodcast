@@ -137,7 +137,7 @@ class AdobePodcastAutomation {
 
     async login() {
         try {
-            this.log('🔐 Iniciando sesión en Adobe...');
+            this.log('🔐 Verificando sesión en Adobe...');
             
             // Navegar a Adobe Podcast
             await this.page.goto(ADOBE_PODCAST_URL, {
@@ -145,33 +145,68 @@ class AdobePodcastAutomation {
                 timeout: 30000
             });
 
-            this.log('📄 Página cargada, buscando botón de login...');
+            this.log('📄 Página cargada');
 
             // Esperar un momento para que la página cargue completamente
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Verificar si ya estamos logueados
+            const currentUrl = this.page.url();
+            const isLoggedIn = await this.page.evaluate(() => {
+                // Buscar elementos que indiquen que estamos logueados
+                const uploadButton = document.querySelector('input[type="file"]');
+                const signOutButton = Array.from(document.querySelectorAll('button, a')).find(b => 
+                    b.textContent.toLowerCase().includes('sign out') || 
+                    b.textContent.toLowerCase().includes('logout')
+                );
+                const enhanceInterface = document.querySelector('[data-test-id*="enhance"], .enhance, #enhance');
+                
+                return !!(uploadButton || signOutButton || enhanceInterface);
+            });
+            
+            if (isLoggedIn || currentUrl.includes('/enhance')) {
+                this.log('✅ Ya estás logueado - Saltando proceso de login');
+                return true;
+            }
+            
+            this.log('🔑 No estás logueado, procediendo con login...');
             
             // Buscar botón de Sign In usando texto
-            const signInButton = await this.page.evaluateHandle(() => {
+            const hasSignInButton = await this.page.evaluate(() => {
                 const buttons = Array.from(document.querySelectorAll('button, a'));
-                return buttons.find(button => {
+                const signInBtn = buttons.find(button => {
                     const text = button.textContent.toLowerCase();
                     return text.includes('sign in') || 
                            text.includes('log in') || 
-                           text.includes('iniciar sesión');
+                           text.includes('iniciar sesión') ||
+                           text.includes('get started');
                 });
+                
+                if (signInBtn) {
+                    signInBtn.click();
+                    return true;
+                }
+                
+                // Buscar enlace de IMS
+                const imsLink = document.querySelector('a[href*="ims"], a[href*="adobelogin"]');
+                if (imsLink) {
+                    imsLink.click();
+                    return true;
+                }
+                
+                return false;
             });
             
-            if (signInButton.asElement()) {
-                await signInButton.asElement().click();
-                this.log('🖱️ Click en botón de Sign In');
+            if (hasSignInButton) {
+                this.log('🖱️ Click en botón de Sign In ejecutado');
             } else {
-                // Intentar con selector alternativo para Adobe IMS
-                const imsLink = await this.page.$('a[href*="ims.na1.adobelogin.com"]');
-                if (imsLink) {
-                    await imsLink.click();
-                    this.log('🖱️ Click en enlace de autenticación Adobe');
-                } else {
-                    throw new Error('No se encontró el botón de Sign In');
+                // Podría ser que ya estemos en la página de login
+                const loginForm = await this.page.$('input[type="email"], input[name="username"]');
+                if (!loginForm) {
+                    this.log('⚠️ No se encontró botón de Sign In ni formulario de login');
+                    this.log('💡 Puede que ya estés logueado o la interfaz haya cambiado');
+                    // No lanzar error, intentar continuar
+                    return true;
                 }
             }
 
