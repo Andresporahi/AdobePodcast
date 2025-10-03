@@ -362,86 +362,140 @@ class AdobePodcastAutomation {
                 
                 // Esperar a que comience el procesamiento
                 this.log('⏳ Esperando inicio de procesamiento...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 5000));
                 
                 // Esperar a que aparezca indicador de procesamiento
-                this.log('🔄 Procesamiento en curso...');
+                this.log('🔄 Procesamiento en curso... (esto puede tardar varios minutos)');
                 
                 // Detectar cuando el procesamiento termine - buscar botón de descarga
                 let downloadSuccess = false;
-                const maxAttempts = 120; // 10 minutos (5 segundos * 120)
+                const maxAttempts = 180; // 15 minutos (5 segundos * 180)
                 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                    // Buscar botón de descarga cada 5 segundos
-                    const downloadButton = await this.page.evaluate(() => {
-                        const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-                        const downloadBtn = buttons.find(b => {
-                            const text = b.textContent.toLowerCase();
-                            const ariaLabel = b.getAttribute('aria-label')?.toLowerCase() || '';
-                            return text.includes('download') || 
-                                   ariaLabel.includes('download') ||
-                                   text.includes('descargar');
-                        });
-                        
-                        if (downloadBtn) {
-                            // Verificar si el botón está habilitado
-                            const isDisabled = downloadBtn.hasAttribute('disabled') || 
-                                             downloadBtn.getAttribute('aria-disabled') === 'true' ||
-                                             downloadBtn.classList.contains('disabled');
-                            return !isDisabled;
-                        }
-                        return false;
-                    });
-                    
-                    if (downloadButton) {
-                        this.log('✅ Procesamiento completado - Botón de descarga disponible');
-                        
-                        // Hacer clic en el botón de descarga
-                        await this.page.evaluate(() => {
-                            const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-                            const downloadBtn = buttons.find(b => {
-                                const text = b.textContent.toLowerCase();
-                                const ariaLabel = b.getAttribute('aria-label')?.toLowerCase() || '';
-                                return text.includes('download') || 
-                                       ariaLabel.includes('download') ||
-                                       text.includes('descargar');
+                    try {
+                        // Buscar botón de descarga cada 5 segundos
+                        const downloadInfo = await this.page.evaluate(() => {
+                            // Buscar botón de descarga de múltiples formas
+                            const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"], [class*="download"], [id*="download"]'));
+                            
+                            const downloadBtn = allElements.find(el => {
+                                const text = (el.textContent || '').toLowerCase();
+                                const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+                                const className = (el.className || '').toLowerCase();
+                                const id = (el.id || '').toLowerCase();
+                                
+                                const hasDownloadText = text.includes('download') || 
+                                                       text.includes('descargar') ||
+                                                       ariaLabel.includes('download') ||
+                                                       className.includes('download') ||
+                                                       id.includes('download');
+                                
+                                if (hasDownloadText) {
+                                    // Verificar si está habilitado
+                                    const isDisabled = el.hasAttribute('disabled') || 
+                                                     el.getAttribute('aria-disabled') === 'true' ||
+                                                     el.classList.contains('disabled') ||
+                                                     el.style.pointerEvents === 'none' ||
+                                                     el.style.opacity === '0.5';
+                                    
+                                    return !isDisabled;
+                                }
+                                return false;
                             });
+                            
                             if (downloadBtn) {
-                                downloadBtn.click();
+                                return {
+                                    found: true,
+                                    text: downloadBtn.textContent,
+                                    tag: downloadBtn.tagName
+                                };
                             }
+                            
+                            return { found: false };
                         });
                         
-                        this.log('💾 Click en botón de descarga ejecutado');
+                        if (downloadInfo.found) {
+                            this.log(`✅ Procesamiento completado - Botón de descarga encontrado: "${downloadInfo.text.trim()}"`);
+                            
+                            // Hacer clic en el botón de descarga
+                            const clicked = await this.page.evaluate(() => {
+                                const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"], [class*="download"], [id*="download"]'));
+                                
+                                const downloadBtn = allElements.find(el => {
+                                    const text = (el.textContent || '').toLowerCase();
+                                    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+                                    const className = (el.className || '').toLowerCase();
+                                    const id = (el.id || '').toLowerCase();
+                                    
+                                    return (text.includes('download') || 
+                                           text.includes('descargar') ||
+                                           ariaLabel.includes('download') ||
+                                           className.includes('download') ||
+                                           id.includes('download')) &&
+                                           !el.hasAttribute('disabled') &&
+                                           el.getAttribute('aria-disabled') !== 'true';
+                                });
+                                
+                                if (downloadBtn) {
+                                    downloadBtn.click();
+                                    return true;
+                                }
+                                return false;
+                            });
+                            
+                            if (clicked) {
+                                this.log('💾 Click en botón de descarga ejecutado');
+                                
+                                // Esperar a que el archivo se descargue (más tiempo)
+                                this.log('⏳ Esperando descarga del archivo...');
+                                await new Promise(resolve => setTimeout(resolve, 10000));
+                                
+                                this.log(`✅ Archivo descargado: ${fileName}`);
+                                downloadSuccess = true;
+                                break;
+                            } else {
+                                this.log('⚠️ No se pudo hacer click en el botón');
+                            }
+                        }
                         
-                        // Esperar a que el archivo se descargue
+                        // Verificar si hay un error
+                        const hasError = await this.page.evaluate(() => {
+                            const errorKeywords = ['error', 'failed', 'unsuccessful', 'problema'];
+                            const allText = document.body.textContent.toLowerCase();
+                            
+                            return errorKeywords.some(keyword => {
+                                const index = allText.indexOf(keyword);
+                                if (index !== -1) {
+                                    // Verificar que no sea parte de otro texto normal
+                                    const context = allText.substring(Math.max(0, index - 50), index + 50);
+                                    return context.includes('processing') || 
+                                           context.includes('upload') ||
+                                           context.includes('enhance');
+                                }
+                                return false;
+                            });
+                        });
+                        
+                        if (hasError) {
+                            this.log('❌ Error detectado en el procesamiento');
+                            break;
+                        }
+                        
+                        // Mostrar progreso cada 6 intentos (30 segundos)
+                        if (attempt % 6 === 0 && attempt > 0) {
+                            const seconds = attempt * 5;
+                            const minutes = Math.floor(seconds / 60);
+                            const remainingSeconds = seconds % 60;
+                            this.log(`⏳ Aún procesando... (${minutes}m ${remainingSeconds}s)`);
+                        }
+                        
+                        // Esperar 5 segundos antes del siguiente intento
                         await new Promise(resolve => setTimeout(resolve, 5000));
                         
-                        this.log(`✅ Archivo descargado: ${fileName}`);
-                        downloadSuccess = true;
-                        break;
+                    } catch (err) {
+                        this.log(`⚠️ Error en intento ${attempt}: ${err.message}`);
+                        // Continuar con el siguiente intento
                     }
-                    
-                    // Verificar si hay un error
-                    const hasError = await this.page.evaluate(() => {
-                        const errorElements = Array.from(document.querySelectorAll('*'));
-                        return errorElements.some(el => {
-                            const text = el.textContent.toLowerCase();
-                            return text.includes('error') || text.includes('failed');
-                        });
-                    });
-                    
-                    if (hasError) {
-                        this.log('❌ Error detectado en el procesamiento');
-                        break;
-                    }
-                    
-                    // Mostrar progreso cada 10 intentos (50 segundos)
-                    if (attempt % 10 === 0 && attempt > 0) {
-                        this.log(`⏳ Aún procesando... (${attempt * 5} segundos)`);
-                    }
-                    
-                    // Esperar 5 segundos antes del siguiente intento
-                    await new Promise(resolve => setTimeout(resolve, 5000));
                 }
                 
                 if (!downloadSuccess) {
