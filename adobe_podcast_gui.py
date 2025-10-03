@@ -56,6 +56,8 @@ class AdobePodcastApp:
         self.download_path_var = tk.StringVar()
         self.auto_download_var = tk.BooleanVar(value=True)
         self.keep_original_var = tk.BooleanVar(value=True)
+        self.speech_level_var = tk.IntVar(value=70)
+        self.background_level_var = tk.IntVar(value=10)
         self.logged_in = False
         self.selected_files = []
         
@@ -281,7 +283,62 @@ Esta aplicación NO comparte tus credenciales."""
                       font=('Segoe UI', 10),
                       activebackground=PLATZI_DARK_2,
                       activeforeground=PLATZI_WHITE).pack(anchor='w',
-                                                         pady=(0, 10))
+                                                         pady=(0, 15))
+        
+        # Ajustes de Adobe Podcast
+        tk.Label(config_card, text="🎚️ Ajustes de Adobe Podcast",
+                bg=PLATZI_DARK_2, fg=PLATZI_GREEN,
+                font=('Segoe UI', 11, 'bold')).pack(anchor='w', pady=(5, 10))
+        
+        # Speech slider
+        speech_frame = tk.Frame(config_card, bg=PLATZI_DARK_2)
+        speech_frame.pack(fill='x', pady=(0, 10))
+        
+        tk.Label(speech_frame, text="Speech (Voz):",
+                bg=PLATZI_DARK_2, fg=PLATZI_WHITE,
+                font=('Segoe UI', 10)).pack(side='left')
+        
+        self.speech_label = tk.Label(speech_frame,
+                                     text=f"{self.speech_level_var.get()}%",
+                                     bg=PLATZI_DARK_2, fg=PLATZI_GREEN,
+                                     font=('Segoe UI', 10, 'bold'))
+        self.speech_label.pack(side='right')
+        
+        speech_slider = tk.Scale(config_card, from_=0, to=100,
+                                orient='horizontal',
+                                variable=self.speech_level_var,
+                                bg=PLATZI_DARK_2, fg=PLATZI_WHITE,
+                                troughcolor=PLATZI_BLUE,
+                                activebackground=PLATZI_GREEN,
+                                highlightthickness=0,
+                                command=lambda v: self.speech_label.config(
+                                    text=f"{int(float(v))}%"))
+        speech_slider.pack(fill='x', pady=(0, 15))
+        
+        # Background slider
+        bg_frame = tk.Frame(config_card, bg=PLATZI_DARK_2)
+        bg_frame.pack(fill='x', pady=(0, 10))
+        
+        tk.Label(bg_frame, text="Background (Fondo):",
+                bg=PLATZI_DARK_2, fg=PLATZI_WHITE,
+                font=('Segoe UI', 10)).pack(side='left')
+        
+        self.background_label = tk.Label(bg_frame,
+                                        text=f"{self.background_level_var.get()}%",
+                                        bg=PLATZI_DARK_2, fg=PLATZI_GREEN,
+                                        font=('Segoe UI', 10, 'bold'))
+        self.background_label.pack(side='right')
+        
+        background_slider = tk.Scale(config_card, from_=0, to=100,
+                                    orient='horizontal',
+                                    variable=self.background_level_var,
+                                    bg=PLATZI_DARK_2, fg=PLATZI_WHITE,
+                                    troughcolor=PLATZI_BLUE,
+                                    activebackground=PLATZI_GREEN,
+                                    highlightthickness=0,
+                                    command=lambda v: self.background_label.config(
+                                        text=f"{int(float(v))}%"))
+        background_slider.pack(fill='x', pady=(0, 15))
         
         save_config_btn = self.create_button(config_card,
                                             "💾 Guardar Configuración",
@@ -374,6 +431,8 @@ Esta aplicación NO comparte tus credenciales."""
                               str(Path.home() / "Downloads" / "AdobePodcast")))
                 self.auto_download_var.set(config.get("auto_download", True))
                 self.keep_original_var.set(config.get("keep_original", True))
+                self.speech_level_var.set(config.get("speech_level", 70))
+                self.background_level_var.set(config.get("background_level", 10))
         else:
             self.download_path_var.set(
                 str(Path.home() / "Downloads" / "AdobePodcast"))
@@ -383,12 +442,15 @@ Esta aplicación NO comparte tus credenciales."""
         config = {
             "download_path": self.download_path_var.get(),
             "auto_download": self.auto_download_var.get(),
-            "keep_original": self.keep_original_var.get()
+            "keep_original": self.keep_original_var.get(),
+            "speech_level": self.speech_level_var.get(),
+            "background_level": self.background_level_var.get()
         }
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
         messagebox.showinfo("Exito", "Configuracion guardada")
         self.log(">> Configuracion guardada")
+        self.log(f">> Speech: {self.speech_level_var.get()}%, Background: {self.background_level_var.get()}%")
     
     def load_credentials(self):
         """Carga las credenciales guardadas"""
@@ -508,7 +570,9 @@ Esta aplicación NO comparte tus credenciales."""
                 '--email', self.email_var.get(),
                 '--password', self.password_var.get(),
                 '--files', files_json,
-                '--download-path', self.download_path_var.get()
+                '--download-path', self.download_path_var.get(),
+                '--speech-level', str(self.speech_level_var.get()),
+                '--background-level', str(self.background_level_var.get())
             ]
             
             # Ejecutar con encoding UTF-8
