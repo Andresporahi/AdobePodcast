@@ -461,11 +461,21 @@ class AdobePodcastAutomation {
                 // Esperar entre archivos
                 if (i < files.length - 1) {
                     this.log('⏳ Preparando siguiente archivo...');
+                    
+                    // Recargar la página para procesar el siguiente archivo
+                    this.log('🔄 Recargando página para siguiente archivo...');
+                    await this.page.goto(ADOBE_PODCAST_URL, {
+                        waitUntil: 'networkidle2',
+                        timeout: 30000
+                    });
+                    
                     await new Promise(resolve => setTimeout(resolve, 3000));
+                    this.log('✅ Página lista para siguiente archivo');
                 }
             }
 
-            this.log('✅ Procesamiento completado para todos los archivos');
+            this.log('🎉 ¡Procesamiento completado para todos los archivos!');
+            this.log(`📊 Total procesado: ${files.length} archivo(s)`);
             return true;
 
         } catch (error) {
