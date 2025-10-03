@@ -395,6 +395,13 @@ class AdobePodcastAutomation {
                 this.log('⏳ Esperando inicio de procesamiento...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 
+                // Hacer zoom al 80% para ver todos los elementos (botón Download y sliders)
+                this.log('🔍 Ajustando zoom a 80% para mejor visibilidad...');
+                await this.page.evaluate(() => {
+                    document.body.style.zoom = '0.8';
+                });
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
                 // Verificar que estemos en la interfaz de procesamiento correcta
                 const processingUIReady = await this.page.evaluate(() => {
                     // Buscar elementos que indican que estamos en la interfaz de procesamiento
