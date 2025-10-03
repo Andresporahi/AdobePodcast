@@ -59,25 +59,49 @@ class AdobePodcastAutomation {
     }
 
     async init() {
-        this.log('🚀 Iniciando navegador...');
+        this.log('🚀 Iniciando navegador Chrome...');
         
         // Crear directorio de descargas si no existe
         if (!fs.existsSync(this.downloadPath)) {
             fs.mkdirSync(this.downloadPath, { recursive: true });
         }
 
+        // Detectar Chrome instalado
+        const chromeExecutable = this.findChromeExecutable();
+        
+        // Ruta del perfil de usuario (temporal para evitar conflictos)
+        const userDataDir = path.join(process.env.LOCALAPPDATA || process.env.APPDATA, 'AdobePodcastEnhancer', 'ChromeProfile');
+        
+        // Crear directorio del perfil si no existe
+        if (!fs.existsSync(userDataDir)) {
+            fs.mkdirSync(userDataDir, { recursive: true });
+        }
+
+        this.log('🌐 Usando Chrome instalado en tu sistema');
+
         this.browser = await puppeteer.launch({
-            headless: false, // Cambiar a true para ejecución sin interfaz
+            headless: false,
+            executablePath: chromeExecutable,
+            userDataDir: userDataDir, // Usa un perfil persistente
             defaultViewport: null,
             args: [
                 '--start-maximized',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled', // Evitar detección de bot
+                '--disable-features=IsolateOrigins,site-per-process'
             ]
         });
 
         this.page = await this.browser.newPage();
+        
+        // Ocultar que es automation
+        await this.page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false,
+            });
+        });
         
         // Configurar descargas
         const client = await this.page.target().createCDPSession();
@@ -86,7 +110,29 @@ class AdobePodcastAutomation {
             downloadPath: this.downloadPath
         });
 
-        this.log('✅ Navegador iniciado');
+        this.log('✅ Navegador Chrome iniciado con perfil persistente');
+    }
+
+    findChromeExecutable() {
+        // Rutas comunes de Chrome en Windows
+        const possiblePaths = [
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe'),
+            path.join(process.env.PROGRAMFILES, 'Google\\Chrome\\Application\\chrome.exe'),
+            path.join(process.env['PROGRAMFILES(X86)'], 'Google\\Chrome\\Application\\chrome.exe')
+        ];
+
+        for (const chromePath of possiblePaths) {
+            if (fs.existsSync(chromePath)) {
+                this.log(`✅ Chrome encontrado en: ${chromePath}`);
+                return chromePath;
+            }
+        }
+
+        // Si no se encuentra, usar Chromium de Puppeteer
+        this.log('⚠️ Chrome no encontrado, usando Chromium de Puppeteer');
+        return null; // Puppeteer usará su Chromium
     }
 
     async login() {
