@@ -404,98 +404,72 @@ class AdobePodcastAutomation {
                 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
                     try {
-                        // Buscar botón de descarga cada 5 segundos
-                        const downloadInfo = await this.page.evaluate(() => {
-                            // MÉTODO 1: Buscar el botón "Download" específico (visible en la UI de Adobe)
-                            // Este es el botón gris en la esquina superior derecha
-                            let downloadBtn = null;
+                        // CLAVE: Los sliders Speech/Background SOLO aparecen cuando el procesamiento Enhanced termina
+                        const processingStatus = await this.page.evaluate(() => {
+                            // Buscar los sliders Speech y Background
+                            const allSliders = Array.from(document.querySelectorAll('input[type="range"]'));
                             
-                            // Buscar por texto exacto "Download"
+                            const speechSlider = allSliders.find(s => {
+                                const parent = s.parentElement;
+                                const label = (parent?.textContent || '').toLowerCase();
+                                const ariaLabel = (s.getAttribute('aria-label') || '').toLowerCase();
+                                return label.includes('speech') || ariaLabel.includes('speech') || 
+                                       label.includes('voz') || ariaLabel.includes('voz');
+                            });
+                            
+                            const backgroundSlider = allSliders.find(s => {
+                                const parent = s.parentElement;
+                                const label = (parent?.textContent || '').toLowerCase();
+                                const ariaLabel = (s.getAttribute('aria-label') || '').toLowerCase();
+                                return label.includes('background') || ariaLabel.includes('background') ||
+                                       label.includes('fondo') || ariaLabel.includes('fondo');
+                            });
+                            
+                            // Si ambos sliders existen Y están visibles = procesamiento terminado
+                            const slidersReady = !!(speechSlider && backgroundSlider);
+                            
+                            // Buscar el botón Download
                             const allButtons = Array.from(document.querySelectorAll('button, a, div[role="button"], span[role="button"]'));
-                            downloadBtn = allButtons.find(btn => {
+                            const downloadBtn = allButtons.find(btn => {
                                 const text = (btn.textContent || '').trim();
                                 return text === 'Download' || text.toLowerCase() === 'download';
                             });
                             
-                            // MÉTODO 2: Buscar por aria-label
-                            if (!downloadBtn) {
-                                downloadBtn = allButtons.find(btn => {
-                                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                                    return ariaLabel.includes('download') || ariaLabel.includes('descargar');
-                                });
-                            }
-                            
-                            // MÉTODO 3: Búsqueda exhaustiva
-                            if (!downloadBtn) {
-                                const allElements = Array.from(document.querySelectorAll('*'));
-                                
-                                downloadBtn = allElements.find(el => {
-                                    const tagName = el.tagName?.toLowerCase();
-                                    if (!['button', 'a', 'div', 'span'].includes(tagName)) return false;
-                                    
-                                    const text = (el.textContent || '').toLowerCase().trim();
-                                    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-                                    const className = (el.className || '').toLowerCase();
-                                    const id = (el.id || '').toLowerCase();
-                                    const dataAttributes = Array.from(el.attributes)
-                                        .filter(attr => attr.name.startsWith('data-'))
-                                        .map(attr => attr.value.toLowerCase())
-                                        .join(' ');
-                                    
-                                    // Buscar palabras clave de descarga
-                                    const downloadKeywords = ['download', 'descargar'];
-                                    const hasDownloadText = downloadKeywords.some(keyword => 
-                                        text.includes(keyword) || 
-                                        ariaLabel.includes(keyword) ||
-                                        className.includes(keyword) ||
-                                        id.includes(keyword) ||
-                                        dataAttributes.includes(keyword)
-                                    );
-                                    
-                                    return hasDownloadText;
-                                });
-                            }
-                            
-                            // Verificar si el botón encontrado está visible y habilitado
+                            let downloadBtnReady = false;
                             if (downloadBtn) {
                                 const style = window.getComputedStyle(downloadBtn);
                                 const isVisible = style.display !== 'none' && 
                                                  style.visibility !== 'hidden' &&
                                                  parseFloat(style.opacity) > 0;
-                                
-                                const isDisabled = downloadBtn.hasAttribute('disabled') || 
-                                                 downloadBtn.getAttribute('aria-disabled') === 'true' ||
-                                                 downloadBtn.classList.contains('disabled') ||
-                                                 style.pointerEvents === 'none';
-                                
-                                if (isVisible && !isDisabled) {
-                                    return {
-                                        found: true,
-                                        text: downloadBtn.textContent.trim(),
-                                        tag: downloadBtn.tagName,
-                                        className: downloadBtn.className,
-                                        id: downloadBtn.id
-                                    };
-                                }
+                                const isEnabled = !downloadBtn.hasAttribute('disabled') && 
+                                                 downloadBtn.getAttribute('aria-disabled') !== 'true' &&
+                                                 style.pointerEvents !== 'none';
+                                downloadBtnReady = isVisible && isEnabled;
                             }
                             
-                            // Debugging: mostrar todos los botones visibles
+                            // Debugging info
                             const visibleButtons = allButtons
                                 .filter(b => {
                                     const style = window.getComputedStyle(b);
-                                    return style.display !== 'none' && 
-                                           style.visibility !== 'hidden' &&
-                                           parseFloat(style.opacity) > 0;
+                                    return style.display !== 'none' && parseFloat(style.opacity) > 0;
                                 })
                                 .map(b => b.textContent.trim())
                                 .filter(t => t.length > 0 && t.length < 50);
                             
-                            return { found: false, availableButtons: visibleButtons.slice(0, 10) };
+                            return {
+                                enhancedReady: slidersReady && downloadBtnReady,
+                                hasSpeechSlider: !!speechSlider,
+                                hasBackgroundSlider: !!backgroundSlider,
+                                slidersCount: allSliders.length,
+                                downloadBtnReady,
+                                downloadBtnExists: !!downloadBtn,
+                                availableButtons: visibleButtons.slice(0, 10)
+                            };
                         });
                         
-                        if (downloadInfo.found) {
-                            this.log(`✅ Procesamiento completado - Botón encontrado: "${downloadInfo.text}"`);
-                            this.log(`📋 Detalles: Tag=${downloadInfo.tag}, Class=${downloadInfo.className}, ID=${downloadInfo.id}`);
+                        if (processingStatus.enhancedReady) {
+                            this.log(`✅ ¡Procesamiento completado! Sliders y botón Download detectados`);
+                            this.log(`📊 Speech: ${processingStatus.hasSpeechSlider}, Background: ${processingStatus.hasBackgroundSlider}, Download: ${processingStatus.downloadBtnReady}`);
                             
                             // Ajustar los sliders ANTES de descargar
                             this.log(`🎚️ Ajustando Speech a ${this.speechLevel}% y Background a ${this.backgroundLevel}%...`);
@@ -594,11 +568,12 @@ class AdobePodcastAutomation {
                             const seconds = attempt * 5;
                             const minutes = Math.floor(seconds / 60);
                             const remainingSeconds = seconds % 60;
-                            this.log(`⏳ Aún procesando... (${minutes}m ${remainingSeconds}s)`);
+                            this.log(`⏳ Esperando procesamiento... (${minutes}m ${remainingSeconds}s)`);
+                            this.log(`🔍 Estado: ${processingStatus.slidersCount} sliders, Download=${processingStatus.downloadBtnExists ? 'Sí' : 'No'}`);
                             
                             // Mostrar botones disponibles para debugging
-                            if (downloadInfo.availableButtons && downloadInfo.availableButtons.length > 0) {
-                                this.log(`🔍 Botones visibles: ${downloadInfo.availableButtons.join(', ')}`);
+                            if (processingStatus.availableButtons && processingStatus.availableButtons.length > 0) {
+                                this.log(`📋 Botones: ${processingStatus.availableButtons.join(', ')}`);
                             }
                         }
                         
