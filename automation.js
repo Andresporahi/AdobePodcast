@@ -294,11 +294,11 @@ class AdobePodcastAutomation {
             });
 
             // Verificar si estamos logueados (URL cambió a enhance)
-            const currentUrl = this.page.url();
-            if (currentUrl.includes('enhance') || currentUrl.includes('podcast.adobe.com')) {
+            const finalUrl = this.page.url();
+            if (finalUrl.includes('enhance') || finalUrl.includes('podcast.adobe.com')) {
                 this.log('✅ Sesión iniciada exitosamente');
             } else {
-                this.log(`⚠️ URL actual: ${currentUrl}`);
+                this.log(`⚠️ URL actual: ${finalUrl}`);
             }
             
             // Esperar un poco más para asegurar que todo cargue
