@@ -102,7 +102,7 @@ class AdobePodcastAutomation {
             this.log('📄 Página cargada, buscando botón de login...');
 
             // Esperar un momento para que la página cargue completamente
-            await this.page.waitForTimeout(2000);
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             // Buscar botón de Sign In usando texto
             const signInButton = await this.page.evaluateHandle(() => {
@@ -153,7 +153,7 @@ class AdobePodcastAutomation {
             this.log('📧 Email ingresado');
 
             // Buscar y hacer clic en botón de continuar
-            await this.page.waitForTimeout(1000);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             const continueButton = await this.page.evaluateHandle(() => {
                 const buttons = Array.from(document.querySelectorAll('button'));
@@ -181,7 +181,7 @@ class AdobePodcastAutomation {
             this.log('🔒 Contraseña ingresada');
 
             // Hacer clic en iniciar sesión
-            await this.page.waitForTimeout(1000);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             const submitButton = await this.page.evaluateHandle(() => {
                 const buttons = Array.from(document.querySelectorAll('button'));
@@ -221,7 +221,7 @@ class AdobePodcastAutomation {
             }
             
             // Esperar un poco más para asegurar que todo cargue
-            await this.page.waitForTimeout(3000);
+            await new Promise(resolve => setTimeout(resolve, 3000));
 
             return true;
         } catch (error) {
@@ -256,8 +256,14 @@ class AdobePodcastAutomation {
                 if (!fileInput) {
                     this.log('⚠️ No se encontró input de archivo, buscando área de drop...');
                     // Intentar hacer clic en el área de drop/upload
-                    await this.page.click('[data-test-id="upload-area"], .upload-area, button:has-text("Upload")');
-                    await this.page.waitForTimeout(1000);
+                    const uploadButton = await this.page.evaluateHandle(() => {
+                        const buttons = Array.from(document.querySelectorAll('button'));
+                        return buttons.find(b => b.textContent.toLowerCase().includes('upload'));
+                    });
+                    if (uploadButton.asElement()) {
+                        await uploadButton.asElement().click();
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
 
                 // Subir archivo
@@ -267,27 +273,31 @@ class AdobePodcastAutomation {
                 this.log(`⬆️ Archivo subido: ${fileName}`);
                 
                 // Esperar a que comience el procesamiento
-                await this.page.waitForTimeout(5000);
+                await new Promise(resolve => setTimeout(resolve, 5000));
                 
                 this.log('🔄 Esperando procesamiento...');
                 
                 // Esperar a que aparezca el botón de descarga o indicador de completado
                 // Esto puede variar según la interfaz de Adobe Podcast
                 try {
-                    await this.page.waitForSelector(
-                        'button:has-text("Download"), a:has-text("Download"), [data-test-id="download"]',
-                        { timeout: PROCESSING_TIMEOUT }
-                    );
+                    // Buscar botón de descarga
+                    const downloadButton = await this.page.waitForFunction(() => {
+                        const buttons = Array.from(document.querySelectorAll('button, a'));
+                        return buttons.find(b => 
+                            b.textContent.toLowerCase().includes('download') ||
+                            b.hasAttribute('data-test-id') && b.getAttribute('data-test-id').includes('download')
+                        );
+                    }, { timeout: PROCESSING_TIMEOUT });
                     
                     this.log('✅ Procesamiento completado');
                     
                     // Hacer clic en el botón de descarga
-                    await this.page.click('button:has-text("Download"), a:has-text("Download"), [data-test-id="download"]');
+                    await downloadButton.asElement().click();
                     
                     this.log('💾 Descarga iniciada...');
                     
                     // Esperar a que el archivo se descargue
-                    await this.page.waitForTimeout(10000);
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                     
                     this.log(`✅ Archivo procesado y descargado: ${fileName}`);
                     
@@ -298,7 +308,7 @@ class AdobePodcastAutomation {
                 
                 // Esperar entre archivos
                 if (i < files.length - 1) {
-                    await this.page.waitForTimeout(2000);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             }
 
