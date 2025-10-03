@@ -143,11 +143,27 @@ class AdobePodcastApp:
         canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
         canvas.configure(yscrollcommand=scrollbar.set)
         
+        # Habilitar scroll con mouse wheel
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _bound_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbound_to_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        canvas.bind('<Enter>', _bound_to_mousewheel)
+        canvas.bind('<Leave>', _unbound_to_mousewheel)
+        
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
         # Contenedor de widgets
         self.content_frame = scrollable_frame
+        
+        # Guardar referencia al canvas para uso posterior
+        self.canvas = canvas
         
         # Mostrar login o panel principal
         self.show_login_screen()
