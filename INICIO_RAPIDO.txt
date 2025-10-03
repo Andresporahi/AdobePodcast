@@ -1,0 +1,75 @@
+================================================================================
+  ADOBE PODCAST ENHANCER - PLATZI EDITION
+  Guía de Inicio Rápido
+================================================================================
+
+📋 PASOS PARA EMPEZAR:
+
+1. INSTALAR DEPENDENCIAS
+   ----------------------
+   - Asegúrate de tener Python 3.8+ instalado
+   - Asegúrate de tener Node.js 18+ instalado
+   
+   Abre una terminal en esta carpeta y ejecuta:
+   > npm install
+
+2. CREAR ACCESO DIRECTO EN ESCRITORIO
+   -----------------------------------
+   - Haz doble clic en: "Crear_Acceso_Directo_Escritorio.bat"
+   - Se creará un acceso directo en tu escritorio
+
+3. ABRIR LA APLICACIÓN
+   --------------------
+   Opción A: Desde el escritorio
+   - Haz doble clic en "Adobe Podcast Enhancer" en tu escritorio
+   
+   Opción B: Desde esta carpeta
+   - Haz doble clic en "AdobePodcast.bat"
+
+4. USAR LA APLICACIÓN
+   -------------------
+   a) Inicia sesión con tu cuenta de Adobe
+   b) Configura la ruta de descarga
+   c) Selecciona tus videos
+   d) Click en "Procesar Videos"
+   e) ¡Listo! Los archivos se descargarán automáticamente
+
+================================================================================
+
+🎨 DISEÑO PLATZI:
+   - Verde Platzi (#98CA3F)
+   - Interfaz moderna con Tkinter
+   - Sin necesidad de navegador
+
+🔒 SEGURIDAD:
+   - Credenciales guardadas localmente (encriptadas)
+   - No se comparten con terceros
+
+📁 FORMATOS SOPORTADOS:
+   MP4, MOV, AVI, MKV, WEBM, M4V
+
+================================================================================
+
+⚠️ PROBLEMAS COMUNES:
+
+"Python no encontrado"
+   → Instala Python desde: python.org
+   → Durante instalación marca "Add Python to PATH"
+
+"Node.js no encontrado"
+   → Instala Node.js desde: nodejs.org
+   → Usa la versión LTS
+
+"Error al crear acceso directo"
+   → Ejecuta como Administrador
+   → Click derecho → "Ejecutar como administrador"
+
+================================================================================
+
+📞 MÁS AYUDA:
+   Lee README.md para documentación completa
+
+🎉 ¡DISFRUTA MEJORANDO TUS VIDEOS!
+
+================================================================================
+

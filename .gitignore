@@ -1,0 +1,45 @@
+# Directorios de configuración
+config/
+credentials.json
+settings.json
+
+# Archivos temporales
+temp_uploads/
+*.tmp
+*.temp
+
+# Node modules
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Streamlit
+.streamlit/
+

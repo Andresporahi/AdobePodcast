@@ -1,0 +1,2 @@
+# Adobe Podcast Enhancer - Dependencias Python
+# No requiere dependencias adicionales - usa Tkinter (incluido en Python)

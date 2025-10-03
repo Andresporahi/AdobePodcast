@@ -1,0 +1,24 @@
+{
+  "name": "adobe-podcast-enhancer",
+  "version": "1.0.0",
+  "description": "Automatización de Adobe Podcast con Puppeteer y Streamlit",
+  "main": "automation.js",
+  "scripts": {
+    "start": "node automation.js",
+    "test": "echo \"No tests configured yet\""
+  },
+  "keywords": [
+    "adobe",
+    "podcast",
+    "automation",
+    "puppeteer",
+    "streamlit"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.6.1",
+    "yargs": "^17.7.2"
+  }
+}
+
