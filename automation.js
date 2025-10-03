@@ -406,70 +406,91 @@ class AdobePodcastAutomation {
                     try {
                         // Buscar botón de descarga cada 5 segundos
                         const downloadInfo = await this.page.evaluate(() => {
-                            // Buscar botón de descarga de múltiples formas
-                            const allElements = Array.from(document.querySelectorAll('*'));
+                            // MÉTODO 1: Buscar el botón "Download" específico (visible en la UI de Adobe)
+                            // Este es el botón gris en la esquina superior derecha
+                            let downloadBtn = null;
                             
-                            // Búsqueda más exhaustiva
-                            const downloadBtn = allElements.find(el => {
-                                const tagName = el.tagName?.toLowerCase();
-                                if (!['button', 'a', 'div', 'span'].includes(tagName)) return false;
-                                
-                                const text = (el.textContent || '').toLowerCase().trim();
-                                const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-                                const className = (el.className || '').toLowerCase();
-                                const id = (el.id || '').toLowerCase();
-                                const dataAttributes = Array.from(el.attributes)
-                                    .filter(attr => attr.name.startsWith('data-'))
-                                    .map(attr => attr.value.toLowerCase())
-                                    .join(' ');
-                                
-                                // Buscar palabras clave de descarga
-                                const downloadKeywords = ['download', 'descargar', 'télécharger', 'herunterladen'];
-                                const hasDownloadText = downloadKeywords.some(keyword => 
-                                    text.includes(keyword) || 
-                                    ariaLabel.includes(keyword) ||
-                                    className.includes(keyword) ||
-                                    id.includes(keyword) ||
-                                    dataAttributes.includes(keyword)
-                                );
-                                
-                                if (hasDownloadText) {
-                                    // Verificar que esté visible y habilitado
-                                    const style = window.getComputedStyle(el);
-                                    const isVisible = style.display !== 'none' && 
-                                                     style.visibility !== 'hidden' &&
-                                                     style.opacity !== '0';
-                                    
-                                    const isDisabled = el.hasAttribute('disabled') || 
-                                                     el.getAttribute('aria-disabled') === 'true' ||
-                                                     el.classList.contains('disabled') ||
-                                                     style.pointerEvents === 'none' ||
-                                                     parseFloat(style.opacity) < 0.3;
-                                    
-                                    return isVisible && !isDisabled;
-                                }
-                                return false;
+                            // Buscar por texto exacto "Download"
+                            const allButtons = Array.from(document.querySelectorAll('button, a, div[role="button"], span[role="button"]'));
+                            downloadBtn = allButtons.find(btn => {
+                                const text = (btn.textContent || '').trim();
+                                return text === 'Download' || text.toLowerCase() === 'download';
                             });
                             
+                            // MÉTODO 2: Buscar por aria-label
+                            if (!downloadBtn) {
+                                downloadBtn = allButtons.find(btn => {
+                                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                                    return ariaLabel.includes('download') || ariaLabel.includes('descargar');
+                                });
+                            }
+                            
+                            // MÉTODO 3: Búsqueda exhaustiva
+                            if (!downloadBtn) {
+                                const allElements = Array.from(document.querySelectorAll('*'));
+                                
+                                downloadBtn = allElements.find(el => {
+                                    const tagName = el.tagName?.toLowerCase();
+                                    if (!['button', 'a', 'div', 'span'].includes(tagName)) return false;
+                                    
+                                    const text = (el.textContent || '').toLowerCase().trim();
+                                    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+                                    const className = (el.className || '').toLowerCase();
+                                    const id = (el.id || '').toLowerCase();
+                                    const dataAttributes = Array.from(el.attributes)
+                                        .filter(attr => attr.name.startsWith('data-'))
+                                        .map(attr => attr.value.toLowerCase())
+                                        .join(' ');
+                                    
+                                    // Buscar palabras clave de descarga
+                                    const downloadKeywords = ['download', 'descargar'];
+                                    const hasDownloadText = downloadKeywords.some(keyword => 
+                                        text.includes(keyword) || 
+                                        ariaLabel.includes(keyword) ||
+                                        className.includes(keyword) ||
+                                        id.includes(keyword) ||
+                                        dataAttributes.includes(keyword)
+                                    );
+                                    
+                                    return hasDownloadText;
+                                });
+                            }
+                            
+                            // Verificar si el botón encontrado está visible y habilitado
                             if (downloadBtn) {
-                                return {
-                                    found: true,
-                                    text: downloadBtn.textContent.trim(),
-                                    tag: downloadBtn.tagName,
-                                    className: downloadBtn.className,
-                                    id: downloadBtn.id
-                                };
+                                const style = window.getComputedStyle(downloadBtn);
+                                const isVisible = style.display !== 'none' && 
+                                                 style.visibility !== 'hidden' &&
+                                                 parseFloat(style.opacity) > 0;
+                                
+                                const isDisabled = downloadBtn.hasAttribute('disabled') || 
+                                                 downloadBtn.getAttribute('aria-disabled') === 'true' ||
+                                                 downloadBtn.classList.contains('disabled') ||
+                                                 style.pointerEvents === 'none';
+                                
+                                if (isVisible && !isDisabled) {
+                                    return {
+                                        found: true,
+                                        text: downloadBtn.textContent.trim(),
+                                        tag: downloadBtn.tagName,
+                                        className: downloadBtn.className,
+                                        id: downloadBtn.id
+                                    };
+                                }
                             }
                             
                             // Debugging: mostrar todos los botones visibles
-                            const allButtons = allElements.filter(el => {
-                                const tagName = el.tagName?.toLowerCase();
-                                if (!['button', 'a'].includes(tagName)) return false;
-                                const style = window.getComputedStyle(el);
-                                return style.display !== 'none' && style.visibility !== 'hidden';
-                            }).map(b => b.textContent.trim().substring(0, 50));
+                            const visibleButtons = allButtons
+                                .filter(b => {
+                                    const style = window.getComputedStyle(b);
+                                    return style.display !== 'none' && 
+                                           style.visibility !== 'hidden' &&
+                                           parseFloat(style.opacity) > 0;
+                                })
+                                .map(b => b.textContent.trim())
+                                .filter(t => t.length > 0 && t.length < 50);
                             
-                            return { found: false, availableButtons: allButtons.slice(0, 5) };
+                            return { found: false, availableButtons: visibleButtons.slice(0, 10) };
                         });
                         
                         if (downloadInfo.found) {
@@ -507,24 +528,23 @@ class AdobePodcastAutomation {
                             
                             // Hacer clic en el botón de descarga
                             const clicked = await this.page.evaluate(() => {
-                                const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"], [class*="download"], [id*="download"]'));
+                                // Buscar el botón "Download" y hacer click
+                                const allButtons = Array.from(document.querySelectorAll('button, a, div[role="button"], span[role="button"]'));
                                 
-                                const downloadBtn = allElements.find(el => {
-                                    const text = (el.textContent || '').toLowerCase();
-                                    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-                                    const className = (el.className || '').toLowerCase();
-                                    const id = (el.id || '').toLowerCase();
-                                    
-                                    return (text.includes('download') || 
-                                           text.includes('descargar') ||
-                                           ariaLabel.includes('download') ||
-                                           className.includes('download') ||
-                                           id.includes('download')) &&
-                                           !el.hasAttribute('disabled') &&
-                                           el.getAttribute('aria-disabled') !== 'true';
+                                let downloadBtn = allButtons.find(btn => {
+                                    const text = (btn.textContent || '').trim();
+                                    return text === 'Download' || text.toLowerCase() === 'download';
                                 });
                                 
-                                if (downloadBtn) {
+                                if (!downloadBtn) {
+                                    downloadBtn = allButtons.find(btn => {
+                                        const text = (btn.textContent || '').toLowerCase();
+                                        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                                        return text.includes('download') || ariaLabel.includes('download');
+                                    });
+                                }
+                                
+                                if (downloadBtn && !downloadBtn.hasAttribute('disabled')) {
                                     downloadBtn.click();
                                     return true;
                                 }
