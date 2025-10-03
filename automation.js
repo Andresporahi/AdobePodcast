@@ -94,7 +94,26 @@ class AdobePodcastAutomation {
             ]
         });
 
-        this.page = await this.browser.newPage();
+        // Obtener todas las páginas abiertas
+        const pages = await this.browser.pages();
+        
+        // Usar la primera página existente en lugar de crear una nueva
+        if (pages.length > 0) {
+            this.page = pages[0];
+            this.log('📄 Usando pestaña existente');
+        } else {
+            this.page = await this.browser.newPage();
+            this.log('📄 Creando nueva pestaña');
+        }
+        
+        // Cerrar otras pestañas vacías (about:blank)
+        for (let i = 1; i < pages.length; i++) {
+            const url = pages[i].url();
+            if (url === 'about:blank' || url === '') {
+                await pages[i].close();
+                this.log('🗑️ Pestaña vacía cerrada');
+            }
+        }
         
         // Ocultar que es automation
         await this.page.evaluateOnNewDocument(() => {
