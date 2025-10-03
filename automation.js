@@ -407,29 +407,46 @@ class AdobePodcastAutomation {
                         // Buscar botón de descarga cada 5 segundos
                         const downloadInfo = await this.page.evaluate(() => {
                             // Buscar botón de descarga de múltiples formas
-                            const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"], [class*="download"], [id*="download"]'));
+                            const allElements = Array.from(document.querySelectorAll('*'));
                             
+                            // Búsqueda más exhaustiva
                             const downloadBtn = allElements.find(el => {
-                                const text = (el.textContent || '').toLowerCase();
+                                const tagName = el.tagName?.toLowerCase();
+                                if (!['button', 'a', 'div', 'span'].includes(tagName)) return false;
+                                
+                                const text = (el.textContent || '').toLowerCase().trim();
                                 const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
                                 const className = (el.className || '').toLowerCase();
                                 const id = (el.id || '').toLowerCase();
+                                const dataAttributes = Array.from(el.attributes)
+                                    .filter(attr => attr.name.startsWith('data-'))
+                                    .map(attr => attr.value.toLowerCase())
+                                    .join(' ');
                                 
-                                const hasDownloadText = text.includes('download') || 
-                                                       text.includes('descargar') ||
-                                                       ariaLabel.includes('download') ||
-                                                       className.includes('download') ||
-                                                       id.includes('download');
+                                // Buscar palabras clave de descarga
+                                const downloadKeywords = ['download', 'descargar', 'télécharger', 'herunterladen'];
+                                const hasDownloadText = downloadKeywords.some(keyword => 
+                                    text.includes(keyword) || 
+                                    ariaLabel.includes(keyword) ||
+                                    className.includes(keyword) ||
+                                    id.includes(keyword) ||
+                                    dataAttributes.includes(keyword)
+                                );
                                 
                                 if (hasDownloadText) {
-                                    // Verificar si está habilitado
+                                    // Verificar que esté visible y habilitado
+                                    const style = window.getComputedStyle(el);
+                                    const isVisible = style.display !== 'none' && 
+                                                     style.visibility !== 'hidden' &&
+                                                     style.opacity !== '0';
+                                    
                                     const isDisabled = el.hasAttribute('disabled') || 
                                                      el.getAttribute('aria-disabled') === 'true' ||
                                                      el.classList.contains('disabled') ||
-                                                     el.style.pointerEvents === 'none' ||
-                                                     el.style.opacity === '0.5';
+                                                     style.pointerEvents === 'none' ||
+                                                     parseFloat(style.opacity) < 0.3;
                                     
-                                    return !isDisabled;
+                                    return isVisible && !isDisabled;
                                 }
                                 return false;
                             });
@@ -437,16 +454,27 @@ class AdobePodcastAutomation {
                             if (downloadBtn) {
                                 return {
                                     found: true,
-                                    text: downloadBtn.textContent,
-                                    tag: downloadBtn.tagName
+                                    text: downloadBtn.textContent.trim(),
+                                    tag: downloadBtn.tagName,
+                                    className: downloadBtn.className,
+                                    id: downloadBtn.id
                                 };
                             }
                             
-                            return { found: false };
+                            // Debugging: mostrar todos los botones visibles
+                            const allButtons = allElements.filter(el => {
+                                const tagName = el.tagName?.toLowerCase();
+                                if (!['button', 'a'].includes(tagName)) return false;
+                                const style = window.getComputedStyle(el);
+                                return style.display !== 'none' && style.visibility !== 'hidden';
+                            }).map(b => b.textContent.trim().substring(0, 50));
+                            
+                            return { found: false, availableButtons: allButtons.slice(0, 5) };
                         });
                         
                         if (downloadInfo.found) {
-                            this.log(`✅ Procesamiento completado - Botón de descarga encontrado: "${downloadInfo.text.trim()}"`);
+                            this.log(`✅ Procesamiento completado - Botón encontrado: "${downloadInfo.text}"`);
+                            this.log(`📋 Detalles: Tag=${downloadInfo.tag}, Class=${downloadInfo.className}, ID=${downloadInfo.id}`);
                             
                             // Ajustar los sliders ANTES de descargar
                             this.log(`🎚️ Ajustando Speech a ${this.speechLevel}% y Background a ${this.backgroundLevel}%...`);
@@ -547,6 +575,11 @@ class AdobePodcastAutomation {
                             const minutes = Math.floor(seconds / 60);
                             const remainingSeconds = seconds % 60;
                             this.log(`⏳ Aún procesando... (${minutes}m ${remainingSeconds}s)`);
+                            
+                            // Mostrar botones disponibles para debugging
+                            if (downloadInfo.availableButtons && downloadInfo.availableButtons.length > 0) {
+                                this.log(`🔍 Botones visibles: ${downloadInfo.availableButtons.join(', ')}`);
+                            }
                         }
                         
                         // Esperar 5 segundos antes del siguiente intento
