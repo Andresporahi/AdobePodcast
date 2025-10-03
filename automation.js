@@ -297,68 +297,140 @@ class AdobePodcastAutomation {
                 this.log(`📁 Procesando archivo ${i + 1}/${files.length}: ${fileName}`);
 
                 // Buscar el input de archivo (puede estar oculto)
-                const fileInput = await this.page.$('input[type="file"]');
+                let fileInput = await this.page.$('input[type="file"]');
                 
                 if (!fileInput) {
-                    this.log('⚠️ No se encontró input de archivo, buscando área de drop...');
-                    // Intentar hacer clic en el área de drop/upload
-                    const uploadButton = await this.page.evaluateHandle(() => {
-                        const buttons = Array.from(document.querySelectorAll('button'));
-                        return buttons.find(b => b.textContent.toLowerCase().includes('upload'));
+                    this.log('⚠️ No se encontró input de archivo, buscando botón de upload...');
+                    
+                    // Hacer clic en cualquier botón que diga "upload" o similar
+                    await this.page.evaluate(() => {
+                        const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                        const uploadBtn = buttons.find(b => {
+                            const text = b.textContent.toLowerCase();
+                            return text.includes('upload') || text.includes('select') || text.includes('choose');
+                        });
+                        if (uploadBtn) uploadBtn.click();
                     });
-                    if (uploadButton.asElement()) {
-                        await uploadButton.asElement().click();
-                    }
+                    
                     await new Promise(resolve => setTimeout(resolve, 1000));
+                    fileInput = await this.page.$('input[type="file"]');
                 }
 
                 // Subir archivo
-                const input = await this.page.$('input[type="file"]');
-                await input.uploadFile(filePath);
-                
-                this.log(`⬆️ Archivo subido: ${fileName}`);
+                if (fileInput) {
+                    await fileInput.uploadFile(filePath);
+                    this.log(`⬆️ Archivo subido: ${fileName}`);
+                } else {
+                    this.log('❌ No se pudo encontrar el input de archivo');
+                    continue;
+                }
                 
                 // Esperar a que comience el procesamiento
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                this.log('⏳ Esperando inicio de procesamiento...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 
-                this.log('🔄 Esperando procesamiento...');
+                // Esperar a que aparezca indicador de procesamiento
+                this.log('🔄 Procesamiento en curso...');
                 
-                // Esperar a que aparezca el botón de descarga o indicador de completado
-                // Esto puede variar según la interfaz de Adobe Podcast
-                try {
-                    // Buscar botón de descarga
-                    const downloadButton = await this.page.waitForFunction(() => {
-                        const buttons = Array.from(document.querySelectorAll('button, a'));
-                        return buttons.find(b => 
-                            b.textContent.toLowerCase().includes('download') ||
-                            b.hasAttribute('data-test-id') && b.getAttribute('data-test-id').includes('download')
-                        );
-                    }, { timeout: PROCESSING_TIMEOUT });
+                // Detectar cuando el procesamiento termine - buscar botón de descarga
+                let downloadSuccess = false;
+                const maxAttempts = 120; // 10 minutos (5 segundos * 120)
+                
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    // Buscar botón de descarga cada 5 segundos
+                    const downloadButton = await this.page.evaluate(() => {
+                        const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                        const downloadBtn = buttons.find(b => {
+                            const text = b.textContent.toLowerCase();
+                            const ariaLabel = b.getAttribute('aria-label')?.toLowerCase() || '';
+                            return text.includes('download') || 
+                                   ariaLabel.includes('download') ||
+                                   text.includes('descargar');
+                        });
+                        
+                        if (downloadBtn) {
+                            // Verificar si el botón está habilitado
+                            const isDisabled = downloadBtn.hasAttribute('disabled') || 
+                                             downloadBtn.getAttribute('aria-disabled') === 'true' ||
+                                             downloadBtn.classList.contains('disabled');
+                            return !isDisabled;
+                        }
+                        return false;
+                    });
                     
-                    this.log('✅ Procesamiento completado');
+                    if (downloadButton) {
+                        this.log('✅ Procesamiento completado - Botón de descarga disponible');
+                        
+                        // Hacer clic en el botón de descarga
+                        await this.page.evaluate(() => {
+                            const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+                            const downloadBtn = buttons.find(b => {
+                                const text = b.textContent.toLowerCase();
+                                const ariaLabel = b.getAttribute('aria-label')?.toLowerCase() || '';
+                                return text.includes('download') || 
+                                       ariaLabel.includes('download') ||
+                                       text.includes('descargar');
+                            });
+                            if (downloadBtn) {
+                                downloadBtn.click();
+                            }
+                        });
+                        
+                        this.log('💾 Click en botón de descarga ejecutado');
+                        
+                        // Esperar a que el archivo se descargue
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        
+                        this.log(`✅ Archivo descargado: ${fileName}`);
+                        downloadSuccess = true;
+                        break;
+                    }
                     
-                    // Hacer clic en el botón de descarga
-                    await downloadButton.asElement().click();
+                    // Verificar si hay un error
+                    const hasError = await this.page.evaluate(() => {
+                        const errorElements = Array.from(document.querySelectorAll('*'));
+                        return errorElements.some(el => {
+                            const text = el.textContent.toLowerCase();
+                            return text.includes('error') || text.includes('failed');
+                        });
+                    });
                     
-                    this.log('💾 Descarga iniciada...');
+                    if (hasError) {
+                        this.log('❌ Error detectado en el procesamiento');
+                        break;
+                    }
                     
-                    // Esperar a que el archivo se descargue
-                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    // Mostrar progreso cada 10 intentos (50 segundos)
+                    if (attempt % 10 === 0 && attempt > 0) {
+                        this.log(`⏳ Aún procesando... (${attempt * 5} segundos)`);
+                    }
                     
-                    this.log(`✅ Archivo procesado y descargado: ${fileName}`);
+                    // Esperar 5 segundos antes del siguiente intento
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                
+                if (!downloadSuccess) {
+                    this.log(`⚠️ No se pudo descargar automáticamente: ${fileName}`);
+                    this.log('💡 Por favor descarga manualmente desde la página');
                     
-                } catch (processingError) {
-                    this.log(`⚠️ Timeout esperando procesamiento de ${fileName}`);
-                    this.log('💡 El archivo puede estar siendo procesado en segundo plano');
+                    // Tomar screenshot para debug
+                    try {
+                        const screenshotPath = path.join(this.downloadPath, `error_${Date.now()}.png`);
+                        await this.page.screenshot({ path: screenshotPath, fullPage: true });
+                        this.log(`📸 Screenshot guardado: ${screenshotPath}`);
+                    } catch (e) {
+                        // Ignorar error de screenshot
+                    }
                 }
                 
                 // Esperar entre archivos
                 if (i < files.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    this.log('⏳ Preparando siguiente archivo...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                 }
             }
 
-            this.log('✅ Todos los archivos procesados');
+            this.log('✅ Procesamiento completado para todos los archivos');
             return true;
 
         } catch (error) {
